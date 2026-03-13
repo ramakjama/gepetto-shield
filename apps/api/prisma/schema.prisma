@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+// IDENTITY & ACCESS
+// ═══════════════════════════════════════════
+
+model User {
+  id              String          @id @default(uuid())
+  email           String          @unique
+  passwordHash    String
+  role            Role
+  channel         Channel
+  orgId           String
+  orgDisplay      String
+  territory       String?
+  department      String?
+  legacyBrand     LegacyBrand?
+  dataClearance   DataClearance   @default(MEDIO)
+  mfaEnabled      Boolean         @default(true)
+  mfaSecret       String?
+  mfaBackupCodes  String[]
+  isActive        Boolean         @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  sessions        Session[]
+  auditEvents     AuditEvent[]
+
+  @@index([orgId])
+  @@index([role])
+  @@index([territory])
+}
+
+model Session {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash  String    @unique
+  ipHash            String
+  uaHash            String
+  deviceFingerprint String
+  isActive          Boolean   @default(true)
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, isActive])
+  @@index([expiresAt])
+}
+
+// ═══════════════════════════════════════════
+// INSURANCE DOMAIN
+// ═══════════════════════════════════════════
+
+model Client {
+  id          String    @id @default(uuid())
+  nif         String    @unique
+  nombre      String
+  apellidos   String?
+  email       String?
+  telefono    String?
+  direccion   String?
+  mediadorId  String
+  corredorId  String?
+  empresaCif  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  policies    Policy[]
+
+  @@index([mediadorId])
+  @@index([corredorId])
+  @@index([empresaCif])
+}
+
+model Policy {
+  id          String        @id @default(uuid())
+  numero      String        @unique
+  clienteNif  String
+  client      Client        @relation(fields: [clienteNif], references: [nif])
+  mediadorId  String
+  corredorId  String?
+  ramo        Ramo
+  fechaInicio DateTime
+  fechaFin    DateTime?
+  prima       Decimal?
+  estado      PolicyStatus  @default(ACTIVA)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  claims      Claim[]
+  commissions Commission[]
+
+  @@index([mediadorId])
+  @@index([corredorId])
+  @@index([ramo])
+  @@index([clienteNif])
+}
+
+model Claim {
+  id                  String        @id @default(uuid())
+  numero              String        @unique
+  polizaId            String
+  policy              Policy        @relation(fields: [polizaId], references: [id])
+  mediadorId          String
+  peritoAsignadoId    String?
+  abogadoId           String?
+  territorio          String?
+  ramo                Ramo
+  fechaOcurrencia     DateTime?
+  descripcion         String?
+  estado              ClaimStatus   @default(ABIERTO)
+  valoracion          Decimal?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  workOrders          WorkOrder[]
+
+  @@index([mediadorId])
+  @@index([peritoAsignadoId])
+  @@index([abogadoId])
+  @@index([territorio])
+  @@index([ramo])
+  @@index([territorio, ramo])
+}
+
+model WorkOrder {
+  id            String          @id @default(uuid())
+  siniestroId   String
+  claim         Claim           @relation(fields: [siniestroId], references: [id])
+  reparadorId   String?
+  tallerId      String?
+  tipo          String
+  descripcion   String?
+  estado        WorkOrderStatus @default(PENDIENTE)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([reparadorId])
+  @@index([tallerId])
+  @@index([siniestroId])
+}
+
+model Commission {
+  id          String    @id @default(uuid())
+  mediadorId  String
+  polizaId    String
+  policy      Policy    @relation(fields: [polizaId], references: [id])
+  periodo     String
+  importe     Decimal
+  estado      CommissionStatus @default(PENDIENTE)
+  createdAt   DateTime  @default(now())
+
+  @@index([mediadorId])
+  @@index([polizaId])
+  @@index([periodo])
+}
+
+model MedicalRecord {
+  id                    String          @id @default(uuid())
+  expedienteId          String
+  expedienteJudicialId  String?
+  tipo                  String
+  contenido             String
+  clasificacion         DataClearance   @default(CRITICO)
+  createdAt             DateTime        @default(now())
+
+  @@index([expedienteId])
+  @@index([expedienteJudicialId])
+  @@index([clasificacion])
+}
+
+// ═══════════════════════════════════════════
+// SECURITY & AUDIT
+// ═══════════════════════════════════════════
+
+model AuditEvent {
+  id              String    @id @default(uuid())
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id])
+  eventType       String
+  severity        String    @default("INFO")
+  queryHash       String?
+  responseHash    String?
+  intent          String?
+  jailbreakScore  Float?
+  piiDetected     Boolean   @default(false)
+  canaryCheck     Boolean   @default(true)
+  latencyMs       Int?
+  tokensIn        Int?
+  tokensOut       Int?
+  prevHash        String?
+  hash            String
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model CanaryToken {
+  id          String    @id @default(uuid())
+  tenantId    String
+  sessionId   String?
+  token       String    @unique
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  detectedAt  DateTime?
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([sessionId])
+}
+
+model Nonce {
+  id        String    @id @default(uuid())
+  value     String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
+}
+
+// ═══════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════
+
+enum Role {
+  AGENTE_EXCLUSIVO_TITULAR
+  AGENTE_EXCLUSIVO_EMPLEADO
+  CORREDOR
+  PERITO
+  REPARADOR
+  TALLER_AUTOPRESTO
+  ABOGADO_PREPERSA
+  EMPLEADO_SINIESTROS
+  EMPLEADO_COMERCIAL
+  EMPLEADO_SALUD
+  CLIENTE_PARTICULAR
+  CLIENTE_EMPRESA
+}
+
+enum Channel {
+  AGENCIAS
+  CORREDORES
+  ESPECIALISTAS
+  INTERNO
+  PREPERSA
+  CLIENTES
+}
+
+enum LegacyBrand {
+  SCO
+  PUS
+  SBI
+  NHS
+}
+
+enum DataClearance {
+  BAJO
+  MEDIO
+  ALTO
+  CRITICO
+}
+
+enum Ramo {
+  HOGAR
+  AUTO
+  VIDA
+  SALUD
+  COMERCIO
+  INDUSTRIA
+  RC
+  DECESOS
+  ACCIDENTES
+}
+
+enum PolicyStatus {
+  ACTIVA
+  ANULADA
+  VENCIDA
+  SUSPENDIDA
+}
+
+enum ClaimStatus {
+  ABIERTO
+  EN_TRAMITE
+  PERITADO
+  REPARANDO
+  CERRADO
+  JUDICIAL
+}
+
+enum WorkOrderStatus {
+  PENDIENTE
+  ASIGNADA
+  EN_CURSO
+  COMPLETADA
+  RECHAZADA
+}
+
+enum CommissionStatus {
+  PENDIENTE
+  LIQUIDADA
+  ANULADA
+}

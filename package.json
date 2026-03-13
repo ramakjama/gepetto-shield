@@ -1,0 +1,26 @@
+{
+  "name": "gepetto-shield",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant AI Copilot for Occident Insurance — Zero Trust, 10 Security Layers",
+  "scripts": {
+    "dev": "pnpm --filter @copilot/api dev & pnpm --filter @copilot/web dev",
+    "dev:api": "pnpm --filter @copilot/api dev",
+    "dev:web": "pnpm --filter @copilot/web dev",
+    "build": "pnpm --filter @copilot/shared build && pnpm --filter @copilot/api build && pnpm --filter @copilot/web build",
+    "test": "pnpm --filter @copilot/api test && pnpm --filter @copilot/shared test",
+    "test:integration": "pnpm --filter @copilot/api test:integration",
+    "test:red-team": "pnpm --filter @copilot/api test:red-team",
+    "test:e2e": "pnpm --filter @copilot/web test:e2e",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @copilot/api prisma migrate deploy",
+    "db:seed": "pnpm --filter @copilot/api prisma db seed",
+    "db:studio": "pnpm --filter @copilot/api prisma studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
